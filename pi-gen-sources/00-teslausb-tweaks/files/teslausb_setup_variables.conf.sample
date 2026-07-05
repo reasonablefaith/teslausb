@@ -250,6 +250,7 @@ export CAM_SIZE=40G
 # export TRIGGER_FILE_SAVED=ARCHIVE_UPLOADED
 # export TRIGGER_FILE_SENTRY=ARCHIVE_UPLOADED
 # export TRIGGER_FILE_RECENT=ARCHIVE_UPLOADED
+# export TRIGGER_FILE_ENCRYPTED=ARCHIVE_UPLOADED
 # export TRIGGER_FILE_ANY=ARCHIVE_UPLOADED
 
 ################################################################################

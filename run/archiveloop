@@ -14,7 +14,9 @@ export LOG_FILE=/mutable/archiveloop.log
 function log () {
   if [ "${LOG_FORMAT:-text}" = "json" ]
   then
-    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"level\":\"info\",\"msg\":\"$(echo "$@" | sed 's/\"/\\\"/g')\"}" >> "$LOG_FILE"
+    local _msg="$*"
+    _msg="${_msg//\"/\\\"}"
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"level\":\"info\",\"msg\":\"${_msg}\"}" >> "$LOG_FILE"
   else
     echo "$( date ):" "$@" >> "$LOG_FILE"
   fi
@@ -623,6 +625,7 @@ function archive_teslacam_clips () {
     mkdir -p "${triggerdir}/SentryClips"
     mkdir -p "${triggerdir}/SavedClips"
     mkdir -p "${triggerdir}/RecentClips"
+    mkdir -p "${triggerdir}/EncryptedClips"
     true > "${triggerlist}"
     if [ -n "${TRIGGER_FILE_SAVED+x}" ]
     then
@@ -638,6 +641,11 @@ function archive_teslacam_clips () {
     then
       touch "${triggerdir}/RecentClips/${TRIGGER_FILE_RECENT}"
       echo "RecentClips/${TRIGGER_FILE_RECENT}" >> "${triggerlist}"
+    fi
+    if [ -n "${TRIGGER_FILE_ENCRYPTED+x}" ]
+    then
+      touch "${triggerdir}/EncryptedClips/${TRIGGER_FILE_ENCRYPTED}"
+      echo "EncryptedClips/${TRIGGER_FILE_ENCRYPTED}" >> "${triggerlist}"
     fi
     if [ -n "${TRIGGER_FILE_ANY+x}" ]
     then

@@ -50,3 +50,9 @@ For pull requests, please split complex changes into multiple pull requests when
 This repo contains steps and scripts originally from [this thread on Reddit](https://www.reddit.com/r/teslamotors/comments/9m9gyk/build_a_smart_usb_drive_for_your_tesla_dash_cam/)
 
 Many people in that thread suggested that the scripts be hosted on GitHub but the author didn't seem interested in making that happen, so GitHub user "cimryan" hosted the scripts on GitHub with the Reddit user's permission.
+
+## Fork Improvements
+
+This fork includes 26 improvements specifically tailored for production LAN-based installations, including network timeout fixes, health monitoring endpoints, and enhanced archive reliability.
+
+For a detailed list of all changes, see [IMPROVEMENTS.md](IMPROVEMENTS.md).

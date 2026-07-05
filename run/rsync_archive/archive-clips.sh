@@ -26,7 +26,7 @@ do
   echo "$(date): rsync: $file_count file(s) from $source_dir to $RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" >&2
 
   # Optional bandwidth limit (KB/s) to prevent saturating slow wifi
-  local -a bwlimit_opt=()
+  bwlimit_opt=()
   if [[ "${RSYNC_BWLIMIT:-0}" -gt 0 ]] 2>/dev/null
   then
     bwlimit_opt=("--bwlimit=$RSYNC_BWLIMIT")
@@ -49,8 +49,6 @@ do
     # Calculate throughput (bytes/sec) from rsync stats
     transferred_bytes=$(grep 'Total transferred file size' /tmp/archive-rsync-cmd.log 2>/dev/null | sed 's/.*: //' | tr -dc '0-9' || echo 0)
     total_seconds=$(grep 'total size' /tmp/rsynclog 2>/dev/null | sed 's/.*speedup is.*//' | tr -dc '0-9' || echo 0)
-    # Alternative: parse from the "sent X bytes received Y bytes" line
-    sent_bytes=$(grep -oP 'sent \K[0-9]+' /tmp/archive-rsync-cmd.log 2>/dev/null || echo 0)
     if [[ "$transferred_bytes" -gt 0 && "$total_seconds" -gt 0 ]] 2>/dev/null
     then
       throughput_bps=$((transferred_bytes / total_seconds))

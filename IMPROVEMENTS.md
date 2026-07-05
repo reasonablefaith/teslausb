@@ -237,11 +237,72 @@ config changes.
 
 ### 15. Fixed archive-filter.sample Regex (Q5)
 
-**Problem**: The regex `'/[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*-front\.mp4$'` assumed
+**Problem**: The regex `'/[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*-front\\.mp4$'` assumed
 date subdirectories in the path, but RecentClips files are flat
 (`2024-01-15--10-30-00-front.mp4`).
 
-**Fix**: Simplified to `grep -E -- '-front\.mp4$'` to match front-camera clips
+**Fix**: Simplified to `grep -E -- '-front\\.mp4$'` to match front-camera clips
 regardless of path structure.
 
 **Files changed**: `run/archive-filter.sample`
+
+---
+
+## Batch 3: Reliability and Performance
+
+### 16. Archive Retry Logic
+**Problem**: Transient network errors during large clip transfers caused the entire batch to be marked as failed, requiring a full re-scan.
+**Fix**: Added a retry loop around the rsync call in `archive-clips.sh` for specific exit codes (e.g., network timeout).
+**Files changed**: `run/rsync_archive/archive-clips.sh`
+
+### 17. health.sh Memory Optimization
+**Problem**: Processing extremely large disk sizes on some systems caused `health.sh` to consume excessive memory when calculating percentages.
+**Fix**: Optimized the arithmetic loop to handle large integers more efficiently.
+**Files changed**: `teslausb-www/html/cgi-bin/health.sh`
+
+### 18. ZFS Archive Support
+**Problem**: Users with ZFS-backed NAS targets reported performance issues and metadata errors with default rsync flags.
+**Fix**: Added optional `RSYNC_EXTRA_OPTS` to allow users to pass `--no-perms` or other ZFS-compatible flags.
+**Files changed**: `setup/pi/envsetup.sh`
+
+### 19. CIFS Permission Handling
+**Problem**: Certain CIFS mount configurations caused `chmod` calls to fail during the archive process, resulting in non-zero exit codes.
+**Fix**: Wrapped permission updates in a conditional check to ignore errors on filesystems that don't support them.
+**Files changed**: `run/rsync_archive/archive-clips.sh`
+
+### 20. Parallel Clip Uploads
+**Problem**: Sequential rsync of many small clips was slow on high-latency LANs.
+**Fix**: Implemented a basic parallelization wrapper using `xargs -P` for the archive process.
+**Files changed**: `run/rsync_archive/archive-clips.sh`
+
+### 21. Archiveloop Remount Race Condition
+**Problem**: A rare race condition where the archiveloop attempted to read from the cam mount while it was being remounted by the system.
+**Fix**: Added a check for mount validity before starting the find operation.
+**Files changed**: `run/archiveloop`
+
+### 22. Archive Transfer Rate Logging
+**Problem**: Hard to determine if a slow archive was due to the network or the disk.
+**Fix**: Added `--stats` to rsync and parsed the output to log actual transfer rates.
+**Files changed**: `run/rsync_archive/archive-clips.sh`
+
+## Batch 4: Final Polishing and Stability
+
+### 23. systemd-notify Integration
+**Problem**: `archiveloop` was managed as a simple service; systemd had no way to know if the inner loop was actually progressing.
+**Fix**: Integrated `systemd-notify` to send "READY=1" and periodic heartbeats.
+**Files changed**: `run/archiveloop`
+
+### 24. Temporary File Cleanup
+**Problem**: Failed archive attempts occasionally left orphaned `.list` files in `/tmp`.
+**Fix**: Added a `trap` to ensure temporary file lists are deleted on exit or crash.
+**Files changed**: `run/rsync_archive/archive-clips.sh`
+
+### 25. Archiveloop Log Rotation
+**Problem**: Long-running installations filled up the SD card with massive log files.
+**Fix**: Implemented a basic log rotation mechanism that triggers when log size exceeds 10MB.
+**Files changed**: `run/archiveloop`
+
+### 26. SSH Timeout Consistency
+**Problem**: Variations in `ConnectTimeout` behavior across different Raspberry Pi OS versions caused intermittent reachability failures.
+**Fix**: Standardized SSH options using a dedicated configuration file snippet.
+**Files changed**: `setup/pi/envsetup.sh`

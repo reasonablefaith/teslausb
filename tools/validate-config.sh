@@ -180,7 +180,8 @@ echo "[Notifications]"
 
 notif_configured=false
 for svc in PUSHOVER GOTIFY IFTTT SNS TELEGRAM DISCORD SLACK MATRIX NTFY WEBHOOK SIGNAL; do
-  if [ "${${svc}_ENABLED:-false}" = "true" ] 2>/dev/null || [ "${!svc:-}" = "true" ] 2>/dev/null; then
+  enabled_var="${svc}_ENABLED"
+  if [ "${!enabled_var:-false}" = "true" ] 2>/dev/null || [ "${!svc:-}" = "true" ] 2>/dev/null; then
     pass "$svc notifications enabled"
     notif_configured=true
   fi

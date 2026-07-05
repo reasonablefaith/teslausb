@@ -50,7 +50,7 @@ then
     exit 0
   fi
   # Decode and verify (base64 encoded "user:pass")
-  if [ "$auth_header" != "Basic " * ] 2>/dev/null
+  if [[ "$auth_header" != "Basic "* ]]
   then
     # Not a Basic auth header
     echo "Status: 401 Unauthorized"
@@ -118,7 +118,7 @@ then
     # Extract the date prefix from the log line (format: "Mon Jan 1 12:00:00 UTC 2026: ...")
     last_archive_time=$(echo "$last_line" | sed 's/: .*//' | sed 's/^[[:space:]]*//')
     # Try to convert to epoch for stuck detection
-    parsed_date=$(echo "$last_archive_time" | sed 's/: .*//')
+    parsed_date="${last_archive_time%%:*}"
     last_archive_epoch=$(date -d "$parsed_date" +%s 2>/dev/null || echo 0)
   fi
 
@@ -146,12 +146,12 @@ cam_free_bytes=null
 cam_total_bytes=null
 if [ -f /backingfiles/cam_disk.bin ]
 then
-  read free_blocks block_size _ < <(stat --file-system --format="%f %S %a" /backingfiles/cam_disk.bin 2>/dev/null || echo "0 0 0")
+  read -r free_blocks block_size _ < <(stat --file-system --format="%f %S %a" /backingfiles/cam_disk.bin 2>/dev/null || echo "0 0 0")
   if [[ "$block_size" -gt 0 && "$free_blocks" -gt 0 ]]
   then
     cam_free_bytes=$((free_blocks * block_size))
   fi
-  read total_blocks _ _ < <(stat --file-system --format="%b %S %a" /backingfiles/cam_disk.bin 2>/dev/null || echo "0 0 0")
+  read -r total_blocks _ _ < <(stat --file-system --format="%b %S %a" /backingfiles/cam_disk.bin 2>/dev/null || echo "0 0 0")
   if [[ "$block_size" -gt 0 && "$total_blocks" -gt 0 ]]
   then
     cam_total_bytes=$((total_blocks * block_size))
@@ -189,6 +189,32 @@ then
   secs_since_last_log=$((now_epoch - last_archive_epoch))
 fi
 
+# Load config values for reporting (if available)
+cfg_archive_system="unknown"
+cfg_archive_recentclips=false
+cfg_unreachable_timeout=0
+cfg_reachable_timeout=0
+cfg_bwlimit=0
+cfg_log_format="text"
+cfg_snapshot_interval=3480
+if [ -f /root/teslausb_setup_variables.conf ]
+then
+  eval "$(grep -E '^export ARCHIVE_SYSTEM=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export ARCHIVE_RECENTCLIPS=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export ARCHIVE_UNREACHABLE_TIMEOUT=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export ARCHIVE_REACHABLE_TIMEOUT=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export RSYNC_BWLIMIT=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export LOG_FORMAT=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export SNAPSHOT_INTERVAL=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  cfg_archive_system="${ARCHIVE_SYSTEM:-unknown}"
+  cfg_archive_recentclips="${ARCHIVE_RECENTCLIPS:-false}"
+  cfg_unreachable_timeout="${ARCHIVE_UNREACHABLE_TIMEOUT:-0}"
+  cfg_reachable_timeout="${ARCHIVE_REACHABLE_TIMEOUT:-0}"
+  cfg_bwlimit="${RSYNC_BWLIMIT:-0}"
+  cfg_log_format="${LOG_FORMAT:-text}"
+  cfg_snapshot_interval="${SNAPSHOT_INTERVAL:-3480}"
+fi
+
 # Output JSON
 cat <<EOF
 {
@@ -210,6 +236,15 @@ cat <<EOF
   "wifi": {
     "interface": "wlan0",
     "status": $(json_str "$wifi_status")
+  },
+  "config": {
+    "archive_system": $(json_str "$cfg_archive_system"),
+    "archive_recentclips": $(json_str "$cfg_archive_recentclips"),
+    "unreachable_timeout": $(json_num "$cfg_unreachable_timeout"),
+    "reachable_timeout": $(json_num "$cfg_reachable_timeout"),
+    "rsync_bwlimit_kbs": $(json_num "$cfg_bwlimit"),
+    "log_format": $(json_str "$cfg_log_format"),
+    "snapshot_interval": $(json_num "$cfg_snapshot_interval")
   },
   "temperature_mc": $(json_num "$temp_mc"),
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
