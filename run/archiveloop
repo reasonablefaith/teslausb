@@ -167,6 +167,8 @@ function wait_for_archive_to_be_reachable () {
 
 function retry () {
   local attempts=0
+  local -ri _retry_max="${RETRY_MAX:-10}"
+  local -ri _retry_delay="${RETRY_DELAY:-1}"
   while true
   do
     if "$@"
@@ -174,16 +176,16 @@ function retry () {
       true
       return
     fi
-    if [ "$attempts" -ge 10 ]
+    if [ "$attempts" -ge "$_retry_max" ]
     then
-      log "Attempts exhausted."
+      log "Attempts exhausted (max=$_retry_max)."
       false
       return
     fi
-    log "Sleeping before retry ..."
-    /bin/sleep 1
+    log "Sleeping ${_retry_delay}s before retry ..."
+    /bin/sleep "$_retry_delay"
     attempts=$((attempts + 1))
-    log "Retrying ($attempts) '$*' ..."
+    log "Retrying ($attempts/$_retry_max) '$*' ..."
   done
   false
   return
@@ -487,6 +489,11 @@ function archive_teslacam_clips () {
   mkdir -p "$overlayupper" "$overlaywork" "$overlaymerged"
 
   mount -t overlay overlay -o "lowerdir=$overlaylower,upperdir=$overlayupper,workdir=$overlaywork" "$overlaymerged"
+
+  # Ensure the overlay is always unmounted, even if the function exits
+  # early due to an error.  Leaving the overlay mounted causes undefined
+  # behavior if the lowerdir changes while the overlay is active.
+  trap 'umount "$overlaymerged" 2>/dev/null || true' RETURN
 
   # Build list of the files to be archived.
   local -r sentrylist=/tmp/sentry_files

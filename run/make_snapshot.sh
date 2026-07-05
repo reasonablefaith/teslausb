@@ -197,8 +197,22 @@ function snapshot {
     ln -s "$newsnapmnt" "$newsnapdir/mnt"
     make_links_for_snapshot "$newsnapmnt" "$newsnapdir/mnt"
     mv "${newsnapname}.toc_" "${newsnapname}.toc"
+    # Reset consecutive identical counter — this snapshot has new content
+    rm -f /tmp/consecutive_identical_snapshots
   else
-    log "new snapshot is identical to previous one, discarding"
+    # Track consecutive identical snapshots for diagnostics.
+    # If many consecutive snapshots are identical, the car is parked —
+    # which is expected, but if this counter grows without bound while
+    # the user expects driving footage, something may be wrong.
+    local consecutive_file=/tmp/consecutive_identical_snapshots
+    local consecutive=1
+    if [ -f "$consecutive_file" ]
+    then
+      read -r consecutive < "$consecutive_file"
+      consecutive=$((consecutive + 1))
+    fi
+    echo "$consecutive" > "$consecutive_file"
+    log "new snapshot is identical to previous one, discarding ($consecutive consecutive identical)"
     /root/bin/release_snapshot.sh "$newsnapdir"
     rm -rf "$newsnapdir"
   fi

@@ -25,8 +25,16 @@ do
   fi
   echo "$(date): rsync: $file_count file(s) from $source_dir to $RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" >&2
 
+  # Optional bandwidth limit (KB/s) to prevent saturating slow wifi
+  local -a bwlimit_opt=()
+  if [[ "${RSYNC_BWLIMIT:-0}" -gt 0 ]] 2>/dev/null
+  then
+    bwlimit_opt=("--bwlimit=$RSYNC_BWLIMIT")
+  fi
+
   if ! (rsync -avhRL --timeout=60 --remove-source-files --no-perms --omit-dir-times \
         --stats --log-file=/tmp/archive-rsync-cmd.log --ignore-missing-args \
+        "${bwlimit_opt[@]}" \
         --files-from="$file_list" "$source_dir" "$RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" &> /tmp/rsynclog || [[ "$?" = "24" ]] )
   then
     cat /tmp/archive-rsync-cmd.log /tmp/rsynclog > /tmp/archive-error.log

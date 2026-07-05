@@ -138,6 +138,11 @@ function read_setup_variables {
   # LAN archive reachable timeout: breaks out of wait_for_archive_to_be_reachable
   # after N seconds if the archive never becomes reachable.  0 = original infinite wait.
   export ARCHIVE_REACHABLE_TIMEOUT=${ARCHIVE_REACHABLE_TIMEOUT:-0}
+  # Configurable retry parameters for archiveloop retry() function
+  export RETRY_MAX=${RETRY_MAX:-10}
+  export RETRY_DELAY=${RETRY_DELAY:-1}
+  # Optional rsync bandwidth limit in KB/s (0 = unlimited)
+  export RSYNC_BWLIMIT=${RSYNC_BWLIMIT:-0}
 }
 
 read_setup_variables

@@ -74,6 +74,14 @@ then
   # Count errors in the last 100 log lines
   error_count=$(tail -100 /mutable/archiveloop.log 2>/dev/null | grep -c -iE 'Error|failed|Archived 0|WARNING' 2>/dev/null || echo 0)
 
+  # Extract last error message for diagnostics
+  last_error_message=null
+  last_error=$(tail -100 /mutable/archiveloop.log 2>/dev/null | grep -iE 'Error|failed|Archived 0|WARNING' | tail -1 || true)
+  if [ -n "$last_error" ]
+  then
+    last_error_message=$(echo "$last_error" | sed 's/: /: /' | head -c 500)
+  fi
+
   # Stuck detection: if last log entry is older than 600s (10min),
   # the archiveloop is likely stuck
   if [[ "$last_archive_epoch" -gt 0 && $((now_epoch - last_archive_epoch)) -gt 600 ]]
@@ -140,7 +148,8 @@ cat <<EOF
     "stuck": $archiveloop_stuck,
     "secs_since_last_log": $(json_num "$secs_since_last_log"),
     "last_log_time": $(json_str "$last_archive_time"),
-    "recent_error_count": $error_count
+    "recent_error_count": $error_count,
+    "last_error": $(json_str "$last_error_message")
   },
   "cam_disk": {
     "free_bytes": $(json_num "$cam_free_bytes"),
