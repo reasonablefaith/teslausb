@@ -135,6 +135,9 @@ function read_setup_variables {
   # LAN archive timeout: breaks out of wait_for_archive_to_be_unreachable
   # after N seconds instead of looping forever.  0 = original infinite wait.
   export ARCHIVE_UNREACHABLE_TIMEOUT=${ARCHIVE_UNREACHABLE_TIMEOUT:-0}
+  # LAN archive reachable timeout: breaks out of wait_for_archive_to_be_reachable
+  # after N seconds if the archive never becomes reachable.  0 = original infinite wait.
+  export ARCHIVE_REACHABLE_TIMEOUT=${ARCHIVE_REACHABLE_TIMEOUT:-0}
 }
 
 read_setup_variables

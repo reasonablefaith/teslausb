@@ -18,12 +18,12 @@ do
   file_list="$2"
 
   # Log what we're about to transfer for diagnostics
-  local_file_count=0
+  file_count=0
   if [ -s "$file_list" ]
   then
-    local_file_count=$(wc -l < "$file_list")
+    file_count=$(wc -l < "$file_list")
   fi
-  echo "$(date): rsync: $local_file_count file(s) from $source_dir to $RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" >&2
+  echo "$(date): rsync: $file_count file(s) from $source_dir to $RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" >&2
 
   if ! (rsync -avhRL --timeout=60 --remove-source-files --no-perms --omit-dir-times \
         --stats --log-file=/tmp/archive-rsync-cmd.log --ignore-missing-args \

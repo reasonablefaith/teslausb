@@ -128,3 +128,120 @@ git merge upstream/main-dev
 ## License
 
 MIT (same as upstream teslausb)
+
+---
+
+## Batch 2: QA, Community, and Ops Improvements
+
+### 7. ARCHIVE_REACHABLE_TIMEOUT
+
+**Problem**: The mirror image of the unreachable bug —
+`wait_for_archive_to_be_reachable()` also polls in an infinite loop. If the
+archive never becomes reachable (DHCP failure, NAS down, wifi misconfigured),
+the loop hangs forever. Community issues: #827, #878.
+
+**Fix**: Added `ARCHIVE_REACHABLE_TIMEOUT` env var (seconds, default 0 =
+infinite, backward compatible). Mirrors the unreachable timeout pattern.
+
+**Files changed**: `run/archiveloop`, `setup/pi/envsetup.sh`, config sample
+
+### 8. Wall-Clock Timeout Accuracy (Q3)
+
+**Problem**: The `ARCHIVE_UNREACHABLE_TIMEOUT` counter incremented per `sleep 1`
+iteration, but the `retry archive_is_reachable` call takes variable time (up to
+50s per attempt). The actual wall-clock timeout was much longer than configured.
+
+**Fix**: Both timeout functions now use `date +%s` (wall-clock epoch) instead
+of counting sleep iterations.
+
+**Files changed**: `run/archiveloop` (both wait functions)
+
+### 9. EncryptedClips Support (C1)
+
+**Problem**: Tesla added an `EncryptedClips/` folder in recent firmware (PR
+#1056 on upstream). The archiveloop's `find` command didn't include this
+folder, so encrypted clips were never archived.
+
+**Fix**: Added `ARCHIVE_ENCRYPTEDCLIPS` option (default false) and
+`encryptedclipsopt` array to the find command, mirroring the existing
+SavedClips/SentryClips/TrackMode/RecentClips pattern. Also added
+EncryptedClips to the empty-directory cleanup in `clean_cam_mount`.
+
+**Files changed**: `run/archiveloop`
+
+### 10. "Archived 0 files" Silent Failure Warning (C5)
+
+**Problem**: Multiple community reports (issues #623, #941) of "Archived 0
+files in 2s" — rsync succeeds but transfers nothing due to stale CIFS handles,
+--files-from path issues, or permissions. The archiveloop reports "success" with
+0 files, masking the problem.
+
+**Fix**: Added a warning log entry when archive reports success but 0 of N
+expected files were archived, directing users to check rsync logs.
+
+**Files changed**: `run/archiveloop`
+
+### 11. Fixed `local` Outside Function (Q1)
+
+**Problem**: `archive-clips.sh` used `local_file_count=...` at script level
+(not inside a function). In bash, `local` at script level is a no-op on some
+versions and an error on others (especially with `set -eu`).
+
+**Fix**: Renamed to `file_count` without `local` keyword.
+
+**Files changed**: `run/rsync_archive/archive-clips.sh`
+
+### 12. health.sh: Removed `bc` Dependency (Q2)
+
+**Problem**: `health.sh` used `bc` for disk space arithmetic, which may not be
+installed on all Pi images.
+
+**Fix**: Replaced with bash `$((...))` arithmetic using `stat --file-system`
+block count × block size.
+
+**Files changed**: `teslausb-www/html/cgi-bin/health.sh`
+
+### 13. health.sh: Stuck Detection + Error Count (O5)
+
+**Problem**: The health endpoint reported basic status but no way to distinguish
+"healthy, no recent archive" from "archiveloop stuck" or "repeatedly failing".
+
+**Fix**: Added:
+- `archiveloop.stuck` — true if last log entry > 600s old
+- `archiveloop.secs_since_last_log` — seconds since last log line
+- `archiveloop.recent_error_count` — count of errors in last 100 log lines
+- Structured `archiveloop` object with nested fields
+
+**Files changed**: `teslausb-www/html/cgi-bin/health.sh`
+
+### 14. Pre-Flight Config Validation (O1)
+
+**Problem**: Common setup mistakes (missing SSH keys, wrong ARCHIVE_SYSTEM,
+no notification configured, multiple keep-awake APIs) aren't detected until
+the Pi fails to archive, often silently.
+
+**Fix**: New `tools/validate-config.sh` — checks config for:
+- Required vars per archive method (RSYNC_SERVER, SHARE_NAME, etc.)
+- SSH key existence for rsync
+- Archive server reachability
+- CAM_SIZE sanity
+- Notification system configured
+- Only one keep-awake API configured
+- Timeout settings
+- Archive options
+
+Outputs pass/fail/warn summary. Can be run before first boot or after
+config changes.
+
+**Files added**: `tools/validate-config.sh`
+
+### 15. Fixed archive-filter.sample Regex (Q5)
+
+**Problem**: The regex `'/[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*-front\.mp4$'` assumed
+date subdirectories in the path, but RecentClips files are flat
+(`2024-01-15--10-30-00-front.mp4`).
+
+**Fix**: Simplified to `grep -E -- '-front\.mp4$'` to match front-camera clips
+regardless of path structure.
+
+**Files changed**: `run/archive-filter.sample`

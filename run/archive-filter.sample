@@ -39,7 +39,7 @@ then
   # Cameras: front, forward_repeater (sides), back, (additional on HW3+)
   # Keep only front-camera clips for a driving-focused channel.
   cp "$FILE_LIST" "${FILE_LIST}.bak"
-  grep -E '/[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*-front\.mp4$' "${FILE_LIST}.bak" > "$FILE_LIST" || true
+  grep -E -- '-front\.mp4$' "${FILE_LIST}.bak" > "$FILE_LIST" || true
   rm -f "${FILE_LIST}.bak"
 
   filtered_count=$(wc -l < "$FILE_LIST")

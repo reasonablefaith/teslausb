@@ -504,6 +504,21 @@ export TEMPERATURE_POSTARCHIVE=true
 # Default: 0 (infinite wait, original behaviour)
 # export ARCHIVE_UNREACHABLE_TIMEOUT=300
 
+# LAN Archive Reachable Timeout
+# Similarly, if the archive server never becomes reachable (DHCP failure,
+# NAS downtime, wifi misconfiguration), the archiveloop can get stuck in
+# the "wait for archive to be reachable" loop.  Setting this timeout
+# breaks out after N seconds so the archiveloop can log and retry.
+# Set to 0 for the original infinite-wait behaviour.
+# Default: 0 (infinite wait, original behaviour)
+# export ARCHIVE_REACHABLE_TIMEOUT=600
+
+# EncryptedClips Archive
+# Tesla added encrypted clip storage (EncryptedClips folder) in recent
+# firmware.  These files are encrypted and cannot be viewed without
+# Tesla's decryption.  Disabled by default.
+# export ARCHIVE_ENCRYPTEDCLIPS=true
+
 # Archive Filter Script
 # If set, the archiveloop will call this script with the file list before
 # archiving, allowing custom filtering (e.g. front-camera-only, geofence
@@ -518,3 +533,7 @@ export TEMPERATURE_POSTARCHIVE=true
 # temperature.  This can be polled by a workstation monitoring system.
 # URL: http://<hostname>/TeslaCam/cgi-bin/health.sh
 # No configuration needed — the script is auto-installed with the web UI.
+
+# Config Validation
+# Run /root/bin/validate-config.sh (or tools/validate-config.sh) to check
+# your teslausb_setup_variables.conf for common mistakes before boot.

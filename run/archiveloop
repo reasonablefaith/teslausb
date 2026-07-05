@@ -125,6 +125,20 @@ function connect_usb_drives_to_host() {
 
 function wait_for_archive_to_be_reachable () {
   log "Waiting for archive to be reachable..."
+
+  # On a LAN (or any setup where the archive server may never become
+  # reachable due to misconfiguration, DHCP failure, or NAS downtime),
+  # the original infinite wait-for-reachable loop hangs forever.
+  # ARCHIVE_REACHABLE_TIMEOUT (seconds) breaks out after the timeout
+  # so the archiveloop can log the failure and retry instead of hanging.
+  # Set to 0 (or unset) for the original infinite-wait behaviour.
+  local -ri _reachable_timeout="${ARCHIVE_REACHABLE_TIMEOUT:-0}"
+  local -i _start_epoch=0
+  if [[ "$_reachable_timeout" -gt 0 ]]
+  then
+    _start_epoch=$(date +%s)
+  fi
+
   while true
   do
     if archive_is_reachable
@@ -137,6 +151,15 @@ function wait_for_archive_to_be_reachable () {
       log "Simulating archive is reachable"
       rm /tmp/archive_is_reachable
       break
+    fi
+    if [[ "$_reachable_timeout" -gt 0 ]]
+    then
+      local -i _elapsed=$(( $(date +%s) - _start_epoch ))
+      if [[ "$_elapsed" -ge "$_reachable_timeout" ]]
+      then
+        log "Archive still unreachable after ${_reachable_timeout}s timeout, breaking out of wait loop."
+        break
+      fi
     fi
     sleep 1
   done
@@ -237,7 +260,11 @@ function wait_for_archive_to_be_unreachable () {
   # behaviour — useful for the mobile use case where the car physically
   # drives away and the archive naturally becomes unreachable.
   local -ri _unreachable_timeout="${ARCHIVE_UNREACHABLE_TIMEOUT:-0}"
-  local -i _waited=0
+  local -i _start_epoch=0
+  if [[ "$_unreachable_timeout" -gt 0 ]]
+  then
+    _start_epoch=$(date +%s)
+  fi
 
   while true
     do
@@ -252,13 +279,16 @@ function wait_for_archive_to_be_unreachable () {
         rm /tmp/archive_is_unreachable
         break
       fi
-      if [[ "$_unreachable_timeout" -gt 0 && "$_waited" -ge "$_unreachable_timeout" ]]
+      if [[ "$_unreachable_timeout" -gt 0 ]]
       then
-        log "Archive still reachable after ${_unreachable_timeout}s timeout, breaking out of wait loop."
-        break
+        local -i _elapsed=$(( $(date +%s) - _start_epoch ))
+        if [[ "$_elapsed" -ge "$_unreachable_timeout" ]]
+        then
+          log "Archive still reachable after ${_unreachable_timeout}s timeout, breaking out of wait loop."
+          break
+        fi
       fi
       sleep 1
-      _waited=$((_waited + 1))
   done
 }
 
@@ -414,7 +444,8 @@ function clean_cam_mount {
 
   # delete directories that are now empty
   find "$CAM_MOUNT/TeslaCam/RecentClips" "$CAM_MOUNT/TeslaCam/SavedClips" \
-    "$CAM_MOUNT/TeslaCam/SentryClips" "$CAM_MOUNT/TeslaTrackMode" -mindepth 1 -type d -empty -delete || true
+    "$CAM_MOUNT/TeslaCam/SentryClips" "$CAM_MOUNT/TeslaCam/EncryptedClips" \
+    "$CAM_MOUNT/TeslaTrackMode" -mindepth 1 -type d -empty -delete 2>/dev/null || true
 
   # Trim the camera archive to reduce the number of blocks in the snapshot.
   trim_free_space "$CAM_MOUNT"
@@ -438,6 +469,9 @@ function clean_cam_mount {
 #       videos.mp4
 #       event.json
 #       thumb.png
+#   EncryptedClips/
+#     datetime/
+#       videos.mp4 (encrypted, requires Tesla firmware decryption)
 # TeslaTrackMode/
 #   lapvideo.mp4
 #   laptelemetry.csv
@@ -466,6 +500,7 @@ function archive_teslacam_clips () {
   local -a sentryclipsopt
   local -a trackmodeclipsopt
   local -a recentclipsopt
+  local -a encryptedclipsopt
   if [ "${ARCHIVE_SAVEDCLIPS:-true}" = "true" ]
   then
     savedclipsopt=("-path" "./SavedClips/*")
@@ -484,7 +519,14 @@ function archive_teslacam_clips () {
   then
     recentclipsopt=("-o" "-path" "./RecentClips/*")
   fi
-  (cd "$overlaylower"; find . \( \( "${savedclipsopt[@]}" "${sentryclipsopt[@]}" "${trackmodeclipsopt[@]}" "${recentclipsopt[@]}" \) -type l \) \
+  # EncryptedClips: Tesla added encrypted clip storage in recent firmware.
+  # Disabled by default since the files are encrypted and cannot be viewed
+  # without Tesla's decryption. Enable with ARCHIVE_ENCRYPTEDCLIPS=true.
+  if [ "${ARCHIVE_ENCRYPTEDCLIPS:-false}" = "true" ]
+  then
+    encryptedclipsopt=("-o" "-path" "./EncryptedClips/*")
+  fi
+  (cd "$overlaylower"; find . \( \( "${savedclipsopt[@]}" "${sentryclipsopt[@]}" "${trackmodeclipsopt[@]}" "${recentclipsopt[@]}" "${encryptedclipsopt[@]}" \) -type l \) \
         -a -fprintf "$sentrylist" '%P\n')
 
   # Copy lists of previously-archived files from /mutable
@@ -610,6 +652,15 @@ function archive_teslacam_clips () {
         echo "$line" >> "${sentrylist_archived}"
       fi
     done < ${sentrylist}
+
+    # Warn if 0 files were archived despite having files to archive.
+    # This catches the "Archived 0 files" silent failure (issues #623, #941)
+    # where rsync succeeds but transfers nothing — e.g. due to --files-from
+    # path issues, stale CIFS handles, or permissions problems.
+    if [[ "$archive_success" = "true" && "$((sentry_archived + trackmode_archived))" -eq 0 && "$total_count" -gt 0 ]]
+    then
+      log "WARNING: Archive reported success but 0 of $total_count files were archived. Check /tmp/rsynclog and /tmp/archive-rsync-cmd.log for details."
+    fi
 
     # copy the list of archived files back to /mutable if it has changed
     if ! diff -q -N "${sentrylist_archived}" "${sentrylist_previously_archived}" > /dev/null
