@@ -491,5 +491,30 @@ export TEMPERATURE_POSTARCHIVE=true
 # from a different repo than github.com/marcone/teslausb
 # export REPO=marcone
 
-# Uncomment and change if you want a different branch than main-dev
+# Uncomment if you want to use a different branch than main-dev
 # export BRANCH=main-dev
+
+# LAN Archive Timeout
+# On a LAN (or any setup where the archive server never "drives away"),
+# the archiveloop can get stuck in the "wait for archive to be unreachable"
+# loop after a transient rsync failure.  Setting this timeout (in seconds)
+# causes the archiveloop to break out of the unreachable-wait and re-attempt
+# archiving instead of hanging indefinitely.
+# Set to 0 for the original infinite-wait behaviour (mobile use case).
+# Default: 0 (infinite wait, original behaviour)
+# export ARCHIVE_UNREACHABLE_TIMEOUT=300
+
+# Archive Filter Script
+# If set, the archiveloop will call this script with the file list before
+# archiving, allowing custom filtering (e.g. front-camera-only, geofence
+# exclusion, custom retention policies).
+# See run/archive-filter.sample for an example.
+# Default: /root/bin/archive-filter (if it exists and is executable)
+# export ARCHIVE_FILTER_SCRIPT=/root/bin/archive-filter
+
+# Health Endpoint
+# The web UI includes a health.sh CGI script that returns JSON status
+# information about the archiveloop, disk space, snapshots, wifi, and
+# temperature.  This can be polled by a workstation monitoring system.
+# URL: http://<hostname>/TeslaCam/cgi-bin/health.sh
+# No configuration needed — the script is auto-installed with the web UI.

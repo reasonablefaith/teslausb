@@ -132,6 +132,9 @@ function read_setup_variables {
   export LIGHTSHOW_SIZE=${LIGHTSHOW_SIZE:-0}
   export DATA_DRIVE=${DATA_DRIVE:-''}
   export USE_EXFAT=${USE_EXFAT:-false}
+  # LAN archive timeout: breaks out of wait_for_archive_to_be_unreachable
+  # after N seconds instead of looping forever.  0 = original infinite wait.
+  export ARCHIVE_UNREACHABLE_TIMEOUT=${ARCHIVE_UNREACHABLE_TIMEOUT:-0}
 }
 
 read_setup_variables

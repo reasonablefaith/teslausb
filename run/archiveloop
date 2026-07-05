@@ -228,6 +228,17 @@ function unmount_music_file () {
 
 function wait_for_archive_to_be_unreachable () {
   log "Waiting for archive to be unreachable..."
+
+  # On a LAN (or any setup where the archive server never "drives away"),
+  # the original infinite wait-for-unreachable loop hangs forever after a
+  # transient rsync failure.  ARCHIVE_UNREACHABLE_TIMEOUT (seconds) breaks
+  # out of the loop so the archiveloop can re-attempt archiving instead of
+  # getting stuck.  Set to 0 (or unset) for the original infinite-wait
+  # behaviour — useful for the mobile use case where the car physically
+  # drives away and the archive naturally becomes unreachable.
+  local -ri _unreachable_timeout="${ARCHIVE_UNREACHABLE_TIMEOUT:-0}"
+  local -i _waited=0
+
   while true
     do
       if ! retry archive_is_reachable
@@ -241,7 +252,13 @@ function wait_for_archive_to_be_unreachable () {
         rm /tmp/archive_is_unreachable
         break
       fi
+      if [[ "$_unreachable_timeout" -gt 0 && "$_waited" -ge "$_unreachable_timeout" ]]
+      then
+        log "Archive still reachable after ${_unreachable_timeout}s timeout, breaking out of wait loop."
+        break
+      fi
       sleep 1
+      _waited=$((_waited + 1))
   done
 }
 

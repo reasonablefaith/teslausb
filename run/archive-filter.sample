@@ -1,0 +1,47 @@
+#!/bin/bash -eu
+#
+# archive-filter.sample — Example archive filter script
+#
+# The archiveloop calls /root/bin/archive-filter (if it exists and is
+# executable) with the path to the file list ($sentrylist) before
+# archiving.  The filter script can modify the list in-place to:
+#
+#   * Keep only certain cameras (e.g. front-only for a driving channel)
+#   * Drop clips that are too short (already handled by archiveloop, but
+#     custom thresholds can be applied here)
+#   * Exclude Sentry events outside a geofence
+#   * Implement selective retention policies
+#
+# To use: copy this file to /root/bin/archive-filter, make it executable,
+# and customise the filtering logic.
+#
+# Input:  $1 = path to a text file listing clip files (one per line,
+#         relative to the overlay mount point)
+# Output: the same file, modified in-place
+#
+# Available environment variables (from envsetup.sh):
+#   ARCHIVE_RECENTCLIPS — "true" if RecentClips are being archived
+#   CAM_MOUNT           — /mnt/cam (the live cam mount)
+#   MUSIC_MOUNT         — /mnt/music
+#   RSYNC_SERVER        — archive server hostname/IP
+#   RSYNC_PATH          — archive path on server
+#
+# Example: keep only front-camera clips from RecentClips
+# ---------------------------------------------------------------------------
+
+FILE_LIST="$1"
+
+# Only filter RecentClips — leave SavedClips and SentryClips untouched
+if [ "${ARCHIVE_RECENTCLIPS:-false}" = "true" ]
+then
+  # Remove all non-front-camera clips from the list.
+  # TeslaCam clip naming: <timestamp>-<camera>.mp4
+  # Cameras: front, forward_repeater (sides), back, (additional on HW3+)
+  # Keep only front-camera clips for a driving-focused channel.
+  cp "$FILE_LIST" "${FILE_LIST}.bak"
+  grep -E '/[0-9]{4}-[0-9]{2}-[0-9]{2}[^/]*-front\.mp4$' "${FILE_LIST}.bak" > "$FILE_LIST" || true
+  rm -f "${FILE_LIST}.bak"
+
+  filtered_count=$(wc -l < "$FILE_LIST")
+  echo "$(date): archive-filter: kept $filtered_count front-camera clips from RecentClips" >&2
+fi
