@@ -32,7 +32,17 @@ do
     bwlimit_opt=("--bwlimit=$RSYNC_BWLIMIT")
   fi
 
-  if ! (rsync -avhRL --timeout=60 --remove-source-files --no-perms --omit-dir-times \
+  # --partial: keep partially transferred files on the archive server (with a
+  # .~partial~ suffix) when the transfer is interrupted by a timeout or
+  # network drop. On the next rsync run, the partial file is detected and
+  # the transfer resumes from where it left off instead of restarting the
+  # whole file from byte 0. This is critical for large clip files that can
+  # take many minutes to transfer over slow wifi and would otherwise be
+  # re-transmitted in full after every transient network blip. Note: the
+  # source file is only removed by --remove-source-files after a successful
+  # complete transfer, so an interrupted transfer leaves the source intact
+  # for the next attempt.
+  if ! (rsync -avhRL --timeout=60 --partial --remove-source-files --no-perms --omit-dir-times \
         --stats --log-file=/tmp/archive-rsync-cmd.log --ignore-missing-args \
         "${bwlimit_opt[@]}" \
         --files-from="$file_list" "$source_dir" "$RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" &> /tmp/rsynclog || [[ "$?" = "24" ]] )

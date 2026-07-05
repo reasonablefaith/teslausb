@@ -831,6 +831,32 @@ function snapshotloop {
     sleep "${SNAPSHOT_INTERVAL:-3480}"
     /root/bin/waitforidle || true
     /root/bin/make_snapshot.sh
+
+    # Enforce maximum snapshot count to prevent unbounded growth.
+    # The freespacemanager already deletes oldest snapshots when disk is
+    # low, but SNAPSHOT_MAX_COUNT proactively limits retention even when
+    # disk space is plentiful. 0 = unlimited (original behavior).
+    local -ri _max_snapshots="${SNAPSHOT_MAX_COUNT:-0}"
+    if [[ "$_max_snapshots" -gt 0 ]]
+    then
+      local -i snap_count=0
+      snap_count=$(find /backingfiles/snapshots -name "snap.bin" 2>/dev/null | wc -l)
+      if [[ "$snap_count" -gt "$_max_snapshots" ]]
+      then
+        local oldest
+        for _ in $(seq $((snap_count - _max_snapshots)))
+        do
+          oldest=$(find /backingfiles/snapshots -maxdepth 1 -name 'snap-*' | sort | head -1)
+          if [ -n "$oldest" ]
+          then
+            log "SNAPSHOT_MAX_COUNT enforcing: deleting $oldest ($snap_count > $_max_snapshots)"
+            /root/bin/release_snapshot.sh "$oldest"
+            rm -rf "$oldest"
+            snap_count=$((snap_count - 1))
+          fi
+        done
+      fi
+    fi
   done
 }
 
@@ -962,11 +988,11 @@ then
 
   set_time
 
-  /root/bin/awake_start || true
+  /root/bin/awake_start && log "awake_start succeeded" || log "awake_start failed (non-fatal)"
 
   archive_clips
 
-  /root/bin/awake_stop || true
+  /root/bin/awake_stop && log "awake_stop succeeded" || log "awake_stop failed (non-fatal)"
 
   doubleblink
 
@@ -985,7 +1011,7 @@ do
 
   set_time
 
-  /root/bin/awake_start || true
+  /root/bin/awake_start && log "awake_start succeeded" || log "awake_start failed (non-fatal)"
 
   sleep "${ARCHIVE_DELAY:-20}"
 
@@ -997,10 +1023,32 @@ do
 
   archive_clips
 
+  # Track consecutive archive failures for alerting
+  local -ri _max_consecutive_failures="${ARCHIVE_MAX_CONSECUTIVE_FAILURES:-3}"
+  local -r _failure_count_file=/tmp/consecutive_archive_failures
+  local -i _failure_count=0
+  if [ -f "$_failure_count_file" ]
+  then
+    read -r _failure_count < "$_failure_count_file" 2>/dev/null || true
+  fi
+  # Check if the last archive succeeded by looking at the log
+  if tail -20 "$LOG_FILE" 2>/dev/null | grep -q 'Finished archiving'
+  then
+    echo 0 > "$_failure_count_file"
+  else
+    _failure_count=$((_failure_count + 1))
+    echo "$_failure_count" > "$_failure_count_file"
+    if [[ "$_failure_count" -ge "$_max_consecutive_failures" ]]
+    then
+      log "WARNING: $_failure_count consecutive archive failures, sending notification"
+      /root/bin/send-push-message "$NOTIFICATION_TITLE:" "WARNING: $_failure_count consecutive archive failures" start || true
+      echo 0 > "$_failure_count_file"
+    fi
+  fi
+
   notify_watchdog
 
-  /root/bin/awake_stop || true
-
+  /root/bin/awake_stop && log "awake_stop succeeded" || log "awake_stop failed (non-fatal)"
   doubleblink
 
   connect_usb_drives_to_host

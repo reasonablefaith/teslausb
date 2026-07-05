@@ -143,8 +143,14 @@ function read_setup_variables {
   export RETRY_DELAY=${RETRY_DELAY:-1}
   # Optional JSON logging format for archiveloop (text|json, default: text)
   export LOG_FORMAT=${LOG_FORMAT:-text}
+  # Max consecutive archive failures before sending alert (default: 3)
+  export ARCHIVE_MAX_CONSECUTIVE_FAILURES=${ARCHIVE_MAX_CONSECUTIVE_FAILURES:-3}
   # Optional rsync bandwidth limit in KB/s (0 = unlimited)
   export RSYNC_BWLIMIT=${RSYNC_BWLIMIT:-0}
+  # Optional rsync compression for slow networks (default: false)
+  export RSYNC_COMPRESS=${RSYNC_COMPRESS:-false}
+  # Max snapshot count (0 = unlimited, original behavior)
+  export SNAPSHOT_MAX_COUNT=${SNAPSHOT_MAX_COUNT:-0}
 }
 
 read_setup_variables

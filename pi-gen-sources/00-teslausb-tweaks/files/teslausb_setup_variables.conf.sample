@@ -520,6 +520,20 @@ export TEMPERATURE_POSTARCHIVE=true
 # Default: 0 (unlimited)
 # export RSYNC_BWLIMIT=5000
 
+# Rsync Compression
+# Enable rsync compression (-z) for slow networks. Off by default since
+# MP4 files are already compressed and the CPU overhead is significant
+# on Pi Zero models.
+# Default: false
+# export RSYNC_COMPRESS=true
+
+# Snapshot Maximum Count
+# Maximum number of snapshots to retain. The freespacemanager deletes
+# oldest snapshots when disk is low, but this proactively limits retention
+# even when disk space is plentiful. 0 = unlimited (original behavior).
+# Default: 0 (unlimited)
+# export SNAPSHOT_MAX_COUNT=20
+
 # Retry Parameters
 # Configure the archiveloop's retry behavior for archive operations.
 # RETRY_MAX: maximum number of retry attempts (default: 10)
@@ -532,6 +546,12 @@ export TEMPERATURE_POSTARCHIVE=true
 # Each line: {"ts":"...","level":"info","msg":"..."}
 # Default: text (traditional plain-text logging)
 # export LOG_FORMAT=json
+
+# Archive Failure Alerting
+# Number of consecutive archive failures before sending a push notification.
+# Set to 0 to disable failure alerting.
+# Default: 3
+# export ARCHIVE_MAX_CONSECUTIVE_FAILURES=3
 
 # EncryptedClips Archive
 # Tesla added encrypted clip storage (EncryptedClips folder) in recent

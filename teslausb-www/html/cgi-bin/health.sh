@@ -133,6 +133,13 @@ then
     last_error_message=$(echo "$last_error" | sed 's/: /: /' | head -c 500)
   fi
 
+  # Read consecutive archive failure count (from archiveloop's failure tracker)
+  consecutive_failures=0
+  if [ -f /tmp/consecutive_archive_failures ]
+  then
+    read -r consecutive_failures < /tmp/consecutive_archive_failures 2>/dev/null || echo 0
+  fi
+
   # Stuck detection: if last log entry is older than 600s (10min),
   # the archiveloop is likely stuck
   if [[ "$last_archive_epoch" -gt 0 && $((now_epoch - last_archive_epoch)) -gt 600 ]]
@@ -226,7 +233,8 @@ cat <<EOF
     "secs_since_last_log": $(json_num "$secs_since_last_log"),
     "last_log_time": $(json_str "$last_archive_time"),
     "recent_error_count": $error_count,
-    "last_error": $(json_str "$last_error_message")
+    "last_error": $(json_str "$last_error_message"),
+    "consecutive_failures": $consecutive_failures
   },
   "cam_disk": {
     "free_bytes": $(json_num "$cam_free_bytes"),
