@@ -141,6 +141,8 @@ function read_setup_variables {
   # Configurable retry parameters for archiveloop retry() function
   export RETRY_MAX=${RETRY_MAX:-10}
   export RETRY_DELAY=${RETRY_DELAY:-1}
+  # Optional JSON logging format for archiveloop (text|json, default: text)
+  export LOG_FORMAT=${LOG_FORMAT:-text}
   # Optional rsync bandwidth limit in KB/s (0 = unlimited)
   export RSYNC_BWLIMIT=${RSYNC_BWLIMIT:-0}
 }

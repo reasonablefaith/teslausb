@@ -45,6 +45,18 @@ do
   if [ -f /tmp/archive-rsync-cmd.log ]
   then
     grep -E 'Number of (regular )?files transferred|Total file size|sent|received' /tmp/archive-rsync-cmd.log >&2 || true
+
+    # Calculate throughput (bytes/sec) from rsync stats
+    transferred_bytes=$(grep 'Total transferred file size' /tmp/archive-rsync-cmd.log 2>/dev/null | sed 's/.*: //' | tr -dc '0-9' || echo 0)
+    total_seconds=$(grep 'total size' /tmp/rsynclog 2>/dev/null | sed 's/.*speedup is.*//' | tr -dc '0-9' || echo 0)
+    # Alternative: parse from the "sent X bytes received Y bytes" line
+    sent_bytes=$(grep -oP 'sent \K[0-9]+' /tmp/archive-rsync-cmd.log 2>/dev/null || echo 0)
+    if [[ "$transferred_bytes" -gt 0 && "$total_seconds" -gt 0 ]] 2>/dev/null
+    then
+      throughput_bps=$((transferred_bytes / total_seconds))
+      throughput_kbps=$((throughput_bps / 1024))
+      echo "$(date): rsync throughput: ${throughput_kbps} KB/s (${transferred_bytes} bytes in ${total_seconds}s)" >&2
+    fi
   fi
 
   shift 2

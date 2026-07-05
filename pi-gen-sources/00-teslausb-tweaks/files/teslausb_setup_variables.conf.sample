@@ -526,6 +526,12 @@ export TEMPERATURE_POSTARCHIVE=true
 # export RETRY_MAX=20
 # export RETRY_DELAY=2
 
+# Log Format
+# Set to 'json' for structured JSON logging in archiveloop.log.
+# Each line: {"ts":"...","level":"info","msg":"..."}
+# Default: text (traditional plain-text logging)
+# export LOG_FORMAT=json
+
 # EncryptedClips Archive
 # Tesla added encrypted clip storage (EncryptedClips folder) in recent
 # firmware.  These files are encrypted and cannot be viewed without

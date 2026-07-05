@@ -823,6 +823,12 @@ After=mutable.mount backingfiles.mount
 Type=simple
 ExecStart=/bin/bash /root/bin/archiveloop
 Restart=always
+# Systemd watchdog: if the archiveloop doesn't send WATCHDOG=1 within
+# 600s, systemd kills and restarts the service. The archiveloop calls
+# notify_watchdog() after each archive cycle. Requires systemd-notify
+# (part of systemd, available on all Pi images).
+WatchdogSec=600
+NotifyAccess=main
 
 [Install]
 WantedBy=backingfiles.mount

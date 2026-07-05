@@ -23,6 +23,57 @@
 #
 # Install: copy to /var/www/html/TeslaCam/cgi-bin/health.sh and make executable
 # Access: http://teslausb.local/TeslaCam/cgi-bin/health.sh
+#
+# If WEB_USERNAME and WEB_PASSWORD are set in teslausb_setup_variables.conf,
+# this endpoint requires HTTP Basic Auth. The config is read from the
+# environment (if sourced) or from /root/teslausb_setup_variables.conf.
+
+# Load web auth config if available
+if [ -z "${WEB_USERNAME:-}" ] && [ -f /root/teslausb_setup_variables.conf ]
+then
+  eval "$(grep -E '^export WEB_USERNAME=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+  eval "$(grep -E '^export WEB_PASSWORD=' /root/teslausb_setup_variables.conf 2>/dev/null | sed 's/^export //' || true)"
+fi
+
+# HTTP Basic Auth check (if configured)
+if [ -n "${WEB_USERNAME:-}" ] && [ -n "${WEB_PASSWORD:-}" ]
+then
+  # Check Authorization header
+  auth_header="${HTTP_AUTHORIZATION:-}"
+  if [ -z "$auth_header" ]
+  then
+    echo "Status: 401 Unauthorized"
+    echo "WWW-Authenticate: Basic realm=\"TeslaUSB Health\""
+    echo "Content-type: application/json"
+    echo ""
+    echo '{"error":"authentication required"}'
+    exit 0
+  fi
+  # Decode and verify (base64 encoded "user:pass")
+  if [ "$auth_header" != "Basic " * ] 2>/dev/null
+  then
+    # Not a Basic auth header
+    echo "Status: 401 Unauthorized"
+    echo "WWW-Authenticate: Basic realm=\"TeslaUSB Health\""
+    echo "Content-type: application/json"
+    echo ""
+    echo '{"error":"basic auth required"}'
+    exit 0
+  fi
+  encoded="${auth_header#Basic }"
+  decoded=$(echo "$encoded" | base64 -d 2>/dev/null || echo "")
+  provided_user="${decoded%%:*}"
+  provided_pass="${decoded#*:}"
+  if [ "$provided_user" != "$WEB_USERNAME" ] || [ "$provided_pass" != "$WEB_PASSWORD" ]
+  then
+    echo "Status: 401 Unauthorized"
+    echo "WWW-Authenticate: Basic realm=\"TeslaUSB Health\""
+    echo "Content-type: application/json"
+    echo ""
+    echo '{"error":"invalid credentials"}'
+    exit 0
+  fi
+fi
 
 echo "Content-type: application/json"
 echo ""

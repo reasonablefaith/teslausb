@@ -12,13 +12,25 @@ modprobe -r g_ether
 export LOG_FILE=/mutable/archiveloop.log
 
 function log () {
-  echo "$( date ):" "$@" >> "$LOG_FILE"
+  if [ "${LOG_FORMAT:-text}" = "json" ]
+  then
+    echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"level\":\"info\",\"msg\":\"$(echo "$@" | sed 's/\"/\\\"/g')\"}" >> "$LOG_FILE"
+  else
+    echo "$( date ):" "$@" >> "$LOG_FILE"
+  fi
   if [[ "$(stat --format="%s" "$LOG_FILE")" -gt 1000000 ]]
   then
     local log_file2="${LOG_FILE}.2"
     tail -n 5000 "$LOG_FILE" > "${log_file2}"
     mv "$log_file2" "$LOG_FILE"
     log "(log truncated)"
+  fi
+}
+
+function notify_watchdog () {
+  if command -v systemctl > /dev/null 2>&1 && [ -n "${NOTIFY_SOCKET:-}" ]
+  then
+    systemd-notify --no-block WATCHDOG=1 2>/dev/null || true
   fi
 }
 
@@ -977,6 +989,8 @@ do
 
   archive_clips
 
+  notify_watchdog
+
   /root/bin/awake_stop || true
 
   doubleblink
@@ -984,6 +998,8 @@ do
   connect_usb_drives_to_host
 
   wait_for_archive_to_be_unreachable
+
+  notify_watchdog
 
   check_if_usb_gadget_is_mounted
 done
