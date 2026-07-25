@@ -26,22 +26,41 @@
 #   RSYNC_SERVER        — archive server hostname/IP
 #   RSYNC_PATH          — archive path on server
 #
-# Example: keep only front-camera clips from RecentClips
+# Example: keep only front-camera clips (works for SavedClips + RecentClips)
+# ---------------------------------------------------------------------------
+# Front-only filter, v3: drops all non-front clips and deduplicates by folder,
+# preferring concat symlinks (e.g. 2026-06-03_12-00-00/2026-06-03_12-00-00-front.mp4)
+# over their constituent parts. Works for both SavedClips and RecentClips
+# because the v2 bug (hardcoded SavedClips/ prefix) is fixed.
 # ---------------------------------------------------------------------------
 
-FILE_LIST="$1"
+filelist=$1
+tmpfile=${filelist}.filtered.$$
 
-# Only filter RecentClips — leave SavedClips and SentryClips untouched
-if [ "${ARCHIVE_RECENTCLIPS:-false}" = "true" ]
-then
-  # Remove all non-front-camera clips from the list.
-  # TeslaCam clip naming: <timestamp>-<camera>.mp4
-  # Cameras: front, forward_repeater (sides), back, (additional on HW3+)
-  # Keep only front-camera clips for a driving-focused channel.
-  cp "$FILE_LIST" "${FILE_LIST}.bak"
-  grep -E -- '-front\.mp4$' "${FILE_LIST}.bak" > "$FILE_LIST" || true
-  rm -f "${FILE_LIST}.bak"
+# Step 1: Keep only front clips
+grep '\-front\.mp4$' "$filelist" > "$tmpfile" || true
 
-  filtered_count=$(wc -l < "$FILE_LIST")
-  echo "$(date): archive-filter: kept $filtered_count front-camera clips from RecentClips" >&2
+finalfile=${filelist}.final.$$
+> "$finalfile"
+
+# Step 2: Deduplicate by folder, prefer concat symlinks
+folders=$(cut -d'/' -f1-2 "$tmpfile" | sort -u)
+for folder_line in $folders; do
+    folder_basename=$(basename "$folder_line")
+    concat_match=$(grep "^$folder_line/$folder_basename-front\.mp4$" "$tmpfile" || true)
+    if [ -n "$concat_match" ]; then
+        echo "$concat_match" >> "$finalfile"
+    else
+        grep "^$folder_line/.*-front\.mp4$" "$tmpfile" >> "$finalfile" || true
+    fi
+done
+
+removed=$(grep -c -v '\-front\.mp4$' "$filelist" 2>/dev/null || echo 0)
+kept=$(wc -l < "$finalfile" 2>/dev/null || echo 0)
+
+if [ "$removed" -gt 0 ] || [ "$kept" -gt 0 ]; then
+    logger -t teslausb "archive-filter v3: kept $kept front clips, removed $removed non-front clips"
 fi
+
+mv "$finalfile" "$filelist"
+rm -f "$tmpfile"

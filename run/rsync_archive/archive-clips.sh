@@ -1,6 +1,6 @@
 #!/bin/bash -eu
-
-# archive-clips.sh — rsync archive backend
+#
+# archive-clips.sh — TeslaUSB rsync archive backend (Tailscale-aware)
 #
 # Transfers clip files from the Pi to the archive server using rsync.
 # The file list passed via --files-from must contain paths RELATIVE to
@@ -11,6 +11,21 @@
 #
 # If a file in the list no longer exists on the source, --ignore-missing-args
 # skips it without error (exit 24 is treated as success for this reason).
+#
+# Tailscale routing: rsync and trigger SSH use /root/bin/archive-ssh.sh
+# wrapper to avoid ProxyCommand quoting hell.
+#
+# Arguments (shift 4 loop — archiveloop passes 4 args per iteration):
+#   $1 = source_dir          (rsync source, e.g. /tmp/cam/merged)
+#   $2 = file_list           (sentrylist — files to transfer)
+#   $3 = trigger_dir         (e.g. /tmp/triggers)
+#   $4 = trigger_list        (e.g. /tmp/triggers.txt — often EMPTY)
+#
+# The key pitfall fixed here: checking $4 for SavedClips is wrong
+# because $4 is empty when TRIGGER_FILE_SAVED is not configured.
+# Check $2 (the actual file list) instead.
+
+ARCHIVE_SSH_WRAPPER="/root/bin/archive-ssh.sh"
 
 while [ -n "${1+x}" ]
 do
@@ -44,8 +59,9 @@ do
   # for the next attempt.
   if ! (rsync -avhRL --timeout=60 --partial --remove-source-files --no-perms --omit-dir-times \
         --stats --log-file=/tmp/archive-rsync-cmd.log --ignore-missing-args \
+        --rsh="$ARCHIVE_SSH_WRAPPER" \
         "${bwlimit_opt[@]}" \
-        --files-from="$file_list" "$source_dir" "$RSYNC_USER@$RSYNC_SERVER:$RSYNC_PATH" &> /tmp/rsynclog || [[ "$?" = "24" ]] )
+        --files-from="$file_list" "$source_dir" "${RSYNC_USER:?}@${RSYNC_SERVER:?}:${RSYNC_PATH:?}" &> /tmp/rsynclog || [[ "$?" = "24" ]] )
   then
     cat /tmp/archive-rsync-cmd.log /tmp/rsynclog > /tmp/archive-error.log
     exit 1
@@ -67,5 +83,15 @@ do
     fi
   fi
 
-  shift 2
+  # Trigger processing box when SavedClips were archived.
+  # $2 is the file list (sentrylist) that contains the actual files being rsynced.
+  # TRIGGER: fire whenever ANY SavedClips entry is in the transfer list.
+  if [ -n "${2+x}" ] && [ -s "$2" ] && grep -q '^SavedClips/' "$2"; then
+      $ARCHIVE_SSH_WRAPPER -o ConnectTimeout=5 -o BatchMode=yes \
+          "${RSYNC_USER:?}@${RSYNC_SERVER:?}" \
+          "python3 /home/greg/.openclaw/workspace/scripts/tc_pipeline_trigger.py set" \
+          > /dev/null 2>&1 || true
+  fi
+
+  shift 4
 done

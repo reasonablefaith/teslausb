@@ -9,10 +9,10 @@
 # Usage:
 #   ./tools/sync-to-pi.sh [pi-hostname-or-ip]
 #
-# Default: pi@teslausb.local
-# Our production Pi: pi@192.168.1.74
+# Default: pi@192.168.1.14 (mDNS unreliable on this Pi)
+# Override: ./tools/sync-to-pi.sh teslausb.local
 
-PI_HOST="${1:-teslausb.local}"
+PI_HOST="${1:-192.168.1.14}"
 PI_USER="pi"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FORK_DIR="$(dirname "$SCRIPT_DIR")"
@@ -28,6 +28,7 @@ FILES=(
   "run/archiveloop"
   "run/rsync_archive/archive-clips.sh"
   "run/rsync_archive/archive-is-reachable.sh"
+  "run/rsync_archive/archive-ssh.sh"
   "run/make_snapshot.sh"
   "run/cifs_archive/verify-and-configure-archive.sh"
   "run/archive-filter.sample"
@@ -38,6 +39,10 @@ FILES=(
   "teslausb-www/html/diagnostics.html"
   "tools/validate-config.sh"
 )
+
+# Remount rootfs as read-write (TeslaUSB mounts / read-only by default)
+echo "Remounting rootfs as read-write on Pi..."
+ssh "$PI_USER@$PI_HOST" "sudo mount -o remount,rw /" 2>&1 || { echo "Failed to remount rootfs"; exit 1; }
 
 # Create target directories on Pi
 echo "Creating directories on Pi..."
@@ -88,6 +93,10 @@ do
     exit 1
   }
 done
+
+echo ""
+echo "Remounting rootfs as read-only on Pi..."
+ssh "$PI_USER@$PI_HOST" "sudo mount -o remount,ro /" 2>&1 || echo "Warning: could not remount rootfs as read-only"
 
 echo ""
 echo "Sync complete!"
